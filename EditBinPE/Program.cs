@@ -75,7 +75,7 @@ class Program
                 }
 
                 if (!(name == "version") && !(name == "help")
-                    && !quietNoMode && !quietYesMode && args.Length > 1)
+                    && !quietNoMode && !quietYesMode && args.Length == 1)
                 {
                     string exc = "only '--version' '--help' --'quite-no' ";
                     exc += "'--quite-yes' have one options";
@@ -94,7 +94,7 @@ class Program
                 && !enableGpuMode && !disableGpuMode)
             {
                 string exc = "only '--enableMode' '--disableMode' '--enableGpuMode' ";
-                exc += "'--disableGpuMode' '--statusMode' have more than two options";
+                exc += "'--disableGpuMode' '--statusMode' have two or more options";
                 throw new ArgException(exc);
             }
 
@@ -133,10 +133,10 @@ class Program
                 stream.WriteByte(0);
             else if (quietYesMode)
                 stream.WriteByte(1);
-            stream.Dispose();
 
             stream.Seek(0, SeekOrigin.Begin);
             quietMode = stream.ReadByte() != 0;
+            stream.Dispose();
         }
 
         // Read the file
