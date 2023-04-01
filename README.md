@@ -3,5 +3,7 @@ It is a CLI application that has the function of looking at and editing the head
 
 It uses PE-Sharp
 
+# How to Use
 To enable-gpu use: editbinpe --enable-gpu filename.exe
+
 Tohelp use: editbinpe --help
