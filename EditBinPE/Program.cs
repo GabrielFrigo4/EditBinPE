@@ -120,6 +120,9 @@ class Program
             }
         }
 
+        if (enableGpuMode) enableMode = true;
+        if (disableGpuMode) disableMode = true;
+
         bool quietMode = false;
         {
             FileStream stream; 
@@ -170,11 +173,12 @@ class Program
             foreach (var symbol in exportSymbols)
             {
                 PEExportTable.Entry exportsEntry = exports.Find(symbol.Name) ?? throw new NullException("exportsEntry");
-                *(uint*)pe.GetRVA(exportsEntry.RVA) = enableGpuMode ? ExportSymbol.EnableValue : ExportSymbol.DisableValue;
+                *(uint*)pe.GetRVA(exportsEntry.RVA) = enableMode ? ExportSymbol.EnableValue : ExportSymbol.DisableValue;
             }
         }
         else
         {
+            //PESectionBuilder? section = pe.FindSection(SectionName);
             if (pe.FindSection(SectionName) != null)
             {
                 throw new InvalidOperationException($"Can't patch as some symbols are missing and {SectionName} section has already been created");
@@ -200,7 +204,7 @@ class Program
                 });
 
                 // Write it's value
-                newSection.OutputStream.Write((uint)(enableGpuMode ? 1 : 0));
+                newSection.OutputStream.Write((uint)(enableMode ? 1 : 0));
             }
 
             // Write the new exports table
