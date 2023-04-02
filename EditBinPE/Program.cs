@@ -230,6 +230,7 @@ class Program
     static void ShowLogo()
     {
         string show = @$"EditBinPE v{Assembly.GetExecutingAssembly().GetName().Version}
+PE-Sharp v{PEUtils.GetVersion()}
 Copyright ©2023 Gabriel Frigo Software. All Rights Reserved
 ";
         Console.WriteLine(show);
