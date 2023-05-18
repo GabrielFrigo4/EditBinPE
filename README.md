@@ -6,4 +6,4 @@ It uses [PE-Sharp](https://github.com/GabrielFrigo4/PE-Sharp)
 # How to Use
 To enable-gpu use: editbinpe --enable-gpu filename.exe
 
-Tohelp use: editbinpe --help
+To help use: editbinpe --help
