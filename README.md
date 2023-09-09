@@ -1,14 +1,9 @@
 # EditBinPE
 It is a CLI application that has the function of looking at and editing the headers of PE32 and PE32+ files
 
-It uses PE-Sharp
+It uses [PE-Sharp](https://github.com/GabrielFrigo4/PE-Sharp)
 
 # How to Use
 To enable-gpu use: editbinpe --enable-gpu filename.exe
 
-Tohelp use: editbinpe --help
-
-# EditPE and GpuPE (Python Script) ==> PyScript Folder
-It is a CLI application that has the function of looking at and editing the headers of PE32 and PE32+ files
-
-It uses 'pefile' and 'lief' python modules
+To help use: editbinpe --help
