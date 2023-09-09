@@ -7,12 +7,18 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Nullable>enable</Nullable>
     <Platforms>AnyCPU</Platforms>
-    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <AssemblyVersion>1.0.2</AssemblyVersion>
     <FileVersion>$(AssemblyVersion)</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="PE-Sharp" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

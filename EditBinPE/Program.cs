@@ -10,8 +10,10 @@ using System;
 namespace EditBinPE;
 class Program
 {
-    const string SectionName = ".patchEBE",
-        ConfigPath = "./config";
+    readonly static string ExePath = AppDomain.CurrentDomain.BaseDirectory,
+        ConfigPath = ExePath + "/config";
+
+    const string SectionName = ".patchPE";//.nvpatch
 
     static readonly ExportSymbol[] GpuSymbols = {
         new("NvOptimusEnablement"),
@@ -38,7 +40,8 @@ class Program
             Console.WriteLine("type '--help' or '/help' to get help");
             return 0;
         }
-        if(args.Length >= 1)
+        
+        if (args.Length >= 1)
         {
             if (PEUtils.IsSwitch(args[0], out var name, out var value))
             {
@@ -88,7 +91,7 @@ class Program
                 throw new ArgException(exc);
             }
         }
-        if(args.Length >= 2)
+        if (args.Length >= 2)
         {
             if (!enableMode && !disableMode && !statusMode
                 && !enableGpuMode && !disableGpuMode)
@@ -98,19 +101,20 @@ class Program
                 throw new ArgException(exc);
             }
 
+            Console.WriteLine("DEU BOM 01"); //AAAAAAH
             inFile = args[1];
-            if (enableGpuMode || disableGpuMode)
+            if (enableGpuMode || disableGpuMode || statusMode)
                 exportSymbols.AddRange(GpuSymbols);
-            else if((enableMode || disableMode) && args.Length == 2)
+            else if ((enableMode || disableMode) && args.Length == 2)
                 throw new ArgException("'--enableMode' '--disableMode' need more than three options");
 
         }
         if (args.Length >= 3)
         {
-            if(enableMode || disableMode)
+            if (enableMode || disableMode)
             {
                 string[] expArgs = args[2..];
-                foreach(string exp in expArgs)
+                foreach (string exp in expArgs)
                     exportSymbols.Add(new(exp));
             }
             else
@@ -123,23 +127,32 @@ class Program
         if (enableGpuMode) enableMode = true;
         if (disableGpuMode) disableMode = true;
 
+        // config file
         bool quietMode = false;
+        if (File.Exists(ConfigPath))
         {
-            FileStream stream; 
-            if (!File.Exists(ConfigPath))
-                stream = File.Create(ConfigPath, 1, FileOptions.None);
+            byte[] options = File.ReadAllBytes(ConfigPath);
+            if (options.Length > 0)
+            {
+                if (options[0] == '0')
+                {
+                    quietMode = false;
+                }
+                else if (options[0] == '1')
+                {
+                    Console.WriteLine("DEU BOM 04"); //AAAAAAH
+                    quietMode = true;
+                }
+            }
             else
-                stream = File.Open(ConfigPath, FileMode.Open, FileAccess.ReadWrite);
-
-            stream.Seek(0, SeekOrigin.Begin);
-            if (quietNoMode)
-                stream.WriteByte(0);
-            else if (quietYesMode)
-                stream.WriteByte(1);
-
-            stream.Seek(0, SeekOrigin.Begin);
-            quietMode = stream.ReadByte() != 0;
-            stream.Dispose();
+            {
+                quietMode = false;
+            }
+        }
+        else
+        {
+            Console.WriteLine("DEU BOM 02"); //AAAAAAH
+            quietMode = false;
         }
 
         // Read the file
@@ -178,7 +191,6 @@ class Program
         }
         else
         {
-            //PESectionBuilder? section = pe.FindSection(SectionName);
             if (pe.FindSection(SectionName) != null)
             {
                 throw new InvalidOperationException($"Can't patch as some symbols are missing and {SectionName} section has already been created");
@@ -190,7 +202,7 @@ class Program
             newSection.Characteristics = SectionFlags.InitializedData | SectionFlags.MemRead;
 
             // Setup the module name
-            exports.ModuleName = Path.GetFileName(args[0]);
+            exports.ModuleName = Path.GetFileName(args[1]);
 
             // Create entres
             foreach (var symbol in exportSymbols)
@@ -223,6 +235,8 @@ class Program
 
         if (!quietMode)
             Console.WriteLine("OK");
+
+        Console.WriteLine("DEU BOM 03"); //AAAAAAH
 
         return 0;
     }
