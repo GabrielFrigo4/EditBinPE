@@ -6,4 +6,4 @@ It uses 'pefile' and 'lief' python modules
 # How to Use
 To enable-gpu use: gpupe infile.exe outfile.exe
 or
-To enable-gpu use: editpe infile.exe outfile.exe NvOptimusEnablement AmdPowerXpressRequestHighPerformance
+To enable-gpu use: editpe infile.exe outfile.exe "NvOptimusEnablement,1" "AmdPowerXpressRequestHighPerformance,1"
