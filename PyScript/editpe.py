@@ -31,7 +31,7 @@ if not (pelib.check_last_section(pelib.SECTION_EXPORT_NAME)):
         pelib.set_section_name(pelib.SECTION_EXPORT_NAME,
                                pelib.SECTION_EXPORT_NAME+'o')
 
-    pelib.add_new_section(pelib.SECTION_EXPORT_NAME)
+    pelib.create_last_section(pelib.SECTION_EXPORT_NAME)
     pelib.set_default_export_section(pelib.SECTION_EXPORT_NAME)
 
 current_symbols.extend(pelib.get_new_symbols(str_symbol_list))

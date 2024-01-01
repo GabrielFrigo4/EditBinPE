@@ -306,7 +306,7 @@ def set_section_name(section_name_old, section_name_new):
 def set_export_section_size(export_section_name, export_section_data):
     delete_last_section()
     section_size = get_export_section_data_size(export_section_data)
-    add_new_section(export_section_name, section_size)
+    create_last_section(export_section_name, section_size)
     set_default_export_section(
         export_section_name, export_section_data.get_entry_offset())
 
@@ -346,7 +346,7 @@ def delete_last_section():
     __set_data_file(new_path, data)
 
 
-def add_new_section(section_name, section_size=SECTION_EXPORT_DEFAULT_SIZE):
+def create_last_section(section_name, section_size=SECTION_EXPORT_DEFAULT_SIZE, section_characteristics = SECTION_EXPORT_CHARACTERISTICS):
     sec_numb = __ERROR
     sec_numb_offset = __ERROR
 
@@ -358,7 +358,6 @@ def add_new_section(section_name, section_size=SECTION_EXPORT_DEFAULT_SIZE):
     section_virtual_address = __ERROR
     section_raw_size = __minimum_multiple(section_size, SECTION_RAW_ALIGN)
     section_raw_address = __ERROR
-    section_characteristics = SECTION_EXPORT_CHARACTERISTICS
 
     with pefile.PE(new_path) as pe:
         sec_numb = pe.FILE_HEADER.NumberOfSections + 1
