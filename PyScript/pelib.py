@@ -1,10 +1,20 @@
-import lief
-from lief import PE
+# [================================]
+# IMPORT MODULES
+# [================================]
+
+
 import pefile
 import shutil
+import math
 import re
 
 
+# [================================]
+# PUBLIC VARIABLES / CONST
+# [================================]
+
+
+BYTE_NULL = 0x0
 BYTE_SIZE = 0x1
 WORD_SIZE = 0x2
 DWORD_SIZE = 0x4
@@ -18,15 +28,6 @@ QWORD_MAX = (0xFF+1)**QWORD_SIZE
 SYMBOL_DATA_NAME = 0
 SYMBOL_DATA_VALUE = 1
 
-IMAGE_DIRECTORY_ENTRY_EXPORT = 0
-ENTRY_EXPORT = IMAGE_DIRECTORY_ENTRY_EXPORT
-
-SECTION_EXPORT_CHARACTERISTICS = 0x40000040
-SECTION_EXPORT_DEFAULT_SIZE = 0x28
-SECTION_EXPORT_NAME = '.edata'
-SECTION_ADDRESS_ALIGN = 0X1000
-SECTION_SIZE_ALIGN = 0X200
-
 NAME_INDEX = 4
 ADDRESS_OF_FUNCTION_INDEX = 8
 ADDRESS_OF_NAMES_INDEX = 9
@@ -38,6 +39,24 @@ SYMBOL_ORDINAL = 'ordinal'
 SYMBOL_NAME_RVA = 'name_rva'
 SYMBOL_NAME_STR = 'name_str'
 SYMBOL_VALUE_PTR = 'value_ptr'
+
+IMAGE_DIRECTORY_ENTRY_EXPORT = 0
+ENTRY_EXPORT = IMAGE_DIRECTORY_ENTRY_EXPORT
+
+SECTION_EXPORT_CHARACTERISTICS = 0x40000040
+SECTION_EXPORT_DEFAULT_SIZE = 0x28
+SECTION_EXPORT_NAME = '.edata'
+SECTION_SIZE = 0x28
+
+
+# [================================]
+# PRIVATE VARIABLES / CONST
+# [================================]
+
+
+__OK = 0
+__ERROR = -1
+__state = __OK
 
 
 # [================================]
@@ -185,6 +204,15 @@ def init(_edit_path, _new_path):
     if not (edit_path == new_path):
         shutil.copyfile(edit_path, new_path)
 
+    global SECTION_VIRTUAL_ALIGN
+    global SECTION_RAW_ALIGN
+    SECTION_VIRTUAL_ALIGN = __ERROR
+    SECTION_RAW_ALIGN = __ERROR
+
+    with pefile.PE(new_path) as pe:
+        SECTION_VIRTUAL_ALIGN = pe.OPTIONAL_HEADER.SectionAlignment
+        SECTION_RAW_ALIGN = pe.OPTIONAL_HEADER.FileAlignment
+
 
 def check_section(section_name):
     ret = False
@@ -276,7 +304,7 @@ def set_section_name(section_name_old, section_name_new):
 
 
 def set_export_section_size(export_section_name, export_section_data):
-    delete_section(export_section_name)
+    delete_last_section()
     section_size = get_export_section_data_size(export_section_data)
     add_new_section(export_section_name, section_size)
     set_default_export_section(
@@ -289,27 +317,77 @@ def set_directory_entry_export_to_none():
         pe.write(new_path)
 
 
-def delete_section(section_name):
-    binary = lief.parse(new_path)
-    binary.remove_section(section_name)
-    builder = lief.PE.Builder(binary)
-    builder.build()
-    builder.write(new_path)
+def delete_last_section():
+    sec_numb = __ERROR
+    sec_numb_offset = __ERROR
+
+    size_of_image = __ERROR
+    size_of_image_offset = __ERROR
+
+    section_raw_size = __ERROR
+    section_raw_address = __ERROR
+
+    with pefile.PE(new_path) as pe:
+        sec_numb = pe.FILE_HEADER.NumberOfSections - 1
+        sec_numb_offset = pe.FILE_HEADER.get_field_absolute_offset(
+            'NumberOfSections')
+
+        size_of_image = pe.OPTIONAL_HEADER.SizeOfImage - SECTION_VIRTUAL_ALIGN
+        size_of_image_offset = pe.OPTIONAL_HEADER.get_field_absolute_offset(
+            'SizeOfImage')
+
+        section_raw_size = pe.sections[-1].SizeOfRawData
+        section_raw_address = pe.sections[-1].PointerToRawData
+
+    data = __get_data_file(new_path)
+    __set_word_at_data(data, sec_numb_offset, sec_numb)
+    __set_dword_at_data(data, size_of_image_offset, size_of_image)
+    __delete_bytes_at_data(data, section_raw_address, section_raw_size)
+    __set_data_file(new_path, data)
 
 
 def add_new_section(section_name, section_size=SECTION_EXPORT_DEFAULT_SIZE):
-    binary = lief.parse(new_path)
+    sec_numb = __ERROR
+    sec_numb_offset = __ERROR
 
-    section = PE.Section(section_name)
-    section.virtual_size = section_size
-    section.size = SECTION_SIZE_ALIGN + section.virtual_size - \
-        section.virtual_size % SECTION_SIZE_ALIGN
-    section.characteristics = SECTION_EXPORT_CHARACTERISTICS
-    binary.add_section(section)
+    size_of_image = __ERROR
+    size_of_image_offset = __ERROR
 
-    builder = lief.PE.Builder(binary)
-    builder.build()
-    builder.write(new_path)
+    section_offset = __ERROR
+    section_virtual_size = section_size
+    section_virtual_address = __ERROR
+    section_raw_size = __minimum_multiple(section_size, SECTION_RAW_ALIGN)
+    section_raw_address = __ERROR
+    section_characteristics = SECTION_EXPORT_CHARACTERISTICS
+
+    with pefile.PE(new_path) as pe:
+        sec_numb = pe.FILE_HEADER.NumberOfSections + 1
+        sec_numb_offset = pe.FILE_HEADER.get_field_absolute_offset(
+            'NumberOfSections')
+
+        size_of_image = pe.OPTIONAL_HEADER.SizeOfImage + SECTION_VIRTUAL_ALIGN
+        size_of_image_offset = pe.OPTIONAL_HEADER.get_field_absolute_offset(
+            'SizeOfImage')
+
+        section_offset = pe.sections[-1].get_file_offset() + SECTION_SIZE
+        section_virtual_address = pe.sections[-1].VirtualAddress + __minimum_multiple(
+            pe.sections[-1].Misc_VirtualSize, SECTION_VIRTUAL_ALIGN)
+        section_raw_address = pe.sections[-1].PointerToRawData + __minimum_multiple(
+            pe.sections[-1].SizeOfRawData, SECTION_RAW_ALIGN)
+
+    data = __get_data_file(new_path)
+    __set_word_at_data(data, sec_numb_offset, sec_numb)
+    __set_dword_at_data(data, size_of_image_offset, size_of_image)
+    __add_bytes_null_at_data(data, section_raw_address, section_raw_size)
+
+    __set_bytes_at_data(data, section_offset + 0x0,
+                        __symbol_name_encode(section_name))
+    __set_dword_at_data(data, section_offset + 0x8, section_virtual_size)
+    __set_dword_at_data(data, section_offset + 0xC, section_virtual_address)
+    __set_dword_at_data(data, section_offset + 0x10, section_raw_size)
+    __set_dword_at_data(data, section_offset + 0x14, section_raw_address)
+    __set_dword_at_data(data, section_offset + 0x24, section_characteristics)
+    __set_data_file(new_path, data)
 
 
 def add_symbols_export_section(export_section_name, symbols):
@@ -337,6 +415,36 @@ def add_symbols_export_section(export_section_name, symbols):
 # [================================]
 # PRIVATE FUNCTIONS
 # [================================]
+
+
+def __minimum_multiple(val, mul):
+    min = math.floor(val/mul) * mul
+    if min < val:
+        min += mul
+    return min
+
+
+def __get_state(value):
+    if (value > __ERROR):
+        return __OK
+    else:
+        return __ERROR
+
+
+def __update_state(value):
+    __state = __get_state(value)
+
+
+def __check_state():
+    if (__state == __OK):
+        return
+    print('ERROR: LOCAL STATE HAS ERROR VALUE!')
+    exit()
+
+
+def __check_value(value):
+    __update_state(value)
+    __check_state()
 
 
 def __symbol_name_encode(symbol_name):
@@ -599,7 +707,7 @@ def __add_symbol_data_file_header(pe):
 
 
 # [================================]
-# PRIVATE FUNCTIONS GET/SET DATA
+# PRIVATE FUNCTIONS DATA
 # [================================]
 
 
@@ -615,7 +723,7 @@ def __set_data_file(path, data):
 
 
 # [================================]
-# PRIVATE FUNCTIONS GET/SET MEMORY
+# PRIVATE FUNCTIONS MEMORY
 # [================================]
 
 
@@ -663,13 +771,13 @@ def __get_qword_at_data(data, offset):
     return qword
 
 
-def __get_bytes_at_data(data, offset, lenght):
+def __get_bytes_at_data(data, offset, length):
     offset = int(offset)
-    lenght = int(lenght)
-    if len(data) < lenght + offset:
-        print(f'__get_bytes_at_data error: lenght and offset is incorrect')
+    length = int(length)
+    if len(data) < length + offset:
+        print(f'__get_bytes_at_data error: length and offset is incorrect')
         return
-    return data[offset:(offset+lenght)]
+    return data[offset:(offset+length)]
 
 
 def __set_byte_at_data(data, offset, byte):
@@ -732,7 +840,111 @@ def __set_qword_at_data(data, offset, qword):
 def __set_bytes_at_data(data, offset, bytes):
     offset = int(offset)
     if len(data) < len(bytes) + offset:
-        print(f'__set_bytes_at_data error: lenght of bytes and offset is incorrect')
+        print(f'__set_bytes_at_data error: length of bytes and offset is incorrect')
         return
     for i in range(len(bytes)):
         data[offset + i] = bytes[i]
+
+
+def __add_byte_at_data(data, offset, byte):
+    offset = int(offset)
+    byte = int(byte)
+    if (byte < 0) or (byte >= BYTE_MAX):
+        print(f'__add_byte_at_data error: byte={byte} is incorrect')
+        return
+    data.insert(offset, byte)
+
+
+def __add_word_at_data(data, offset, word):
+    offset = int(offset)
+    word = int(word)
+    if (word < 0) or (word >= WORD_MAX):
+        print(f'__add_word_at_data error: word={word} is incorrect')
+        return
+    for i in range(WORD_SIZE):
+        rest = int(word % BYTE_MAX)
+        word = int((word - rest) / BYTE_MAX)
+        data.insert(offset + i, rest)
+
+
+def __add_dword_at_data(data, offset, dword):
+    offset = int(offset)
+    dword = int(dword)
+    if (dword < 0) or (dword >= DWORD_MAX):
+        print(f'__add_dword_at_data error: dword={dword} is incorrect')
+        return
+    for i in range(DWORD_SIZE):
+        rest = int(dword % BYTE_MAX)
+        dword = int((dword - rest) / BYTE_MAX)
+        data.insert(offset + i, rest)
+
+
+def __add_qword_at_data(data, offset, qword):
+    offset = int(offset)
+    qword = int(qword)
+    if (qword < 0) or (qword >= QWORD_MAX):
+        print(f'__add_qword_at_data error: qword={qword} is incorrect')
+        return
+    for i in range(QWORD_SIZE):
+        rest = int(qword % BYTE_MAX)
+        qword = int((qword - rest) / BYTE_MAX)
+        data.insert(offset + i, rest)
+
+
+def __add_bytes_at_data(data, offset, bytes):
+    offset = int(offset)
+    for i in range(len(bytes)):
+        data.insert(offset + i, bytes[i])
+
+
+def __add_bytes_null_at_data(data, offset, length):
+    offset = int(offset)
+    for i in range(length):
+        data.insert(offset + i, BYTE_NULL)
+
+
+def __delete_byte_at_data(data, offset):
+    offset = int(offset)
+    if len(data) < offset + BYTE_SIZE:
+        print(f'__delete_byte_at_data error: offset is incorrect')
+        return
+    del data[offset]
+
+
+def __delete_word_at_data(data, offset):
+    offset = int(offset)
+    word = 0
+    if len(data) < offset + WORD_SIZE:
+        print(f'__delete_word_at_data error: offset is incorrect')
+        return
+    for i in reversed(range(WORD_SIZE)):
+        del data[offset + i]
+
+
+def __delete_dword_at_data(data, offset):
+    offset = int(offset)
+    dword = 0
+    if len(data) < offset + DWORD_SIZE:
+        print(f'__delete_dword_at_data error: offset is incorrect')
+        return
+    for i in reversed(range(DWORD_SIZE)):
+        del data[offset + i]
+
+
+def __delete_qword_at_data(data, offset):
+    offset = int(offset)
+    qword = 0
+    if len(data) < offset + QWORD_SIZE:
+        print(f'__delete_qword_at_data error: offset is incorrect')
+        return
+    for i in reversed(range(QWORD_SIZE)):
+        del data[offset + i]
+
+
+def __delete_bytes_at_data(data, offset, length):
+    offset = int(offset)
+    length = int(length)
+    if len(data) < length + offset:
+        print(f'__delete_bytes_at_data error: length and offset is incorrect')
+        return
+    del data[offset:(offset+length)]
